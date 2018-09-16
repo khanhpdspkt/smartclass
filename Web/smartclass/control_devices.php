@@ -56,7 +56,6 @@ desired effect
 
   <!-- Main Header -->
   <header class="main-header">
-
     <!-- Logo -->
     <a href="index.html" class="logo">
       <!-- mini logo for sidebar mini 50x50 pixels -->
@@ -74,19 +73,15 @@ desired effect
       <!-- Navbar Right Menu -->
       <div class="navbar-custom-menu">
         <ul class="nav navbar-nav">         
-          
-          
         </ul>
       </div>
     </nav>
   </header>
+
   <!-- Left side column. contains the logo and sidebar -->
   <aside class="main-sidebar">
-
     <!-- sidebar: style can be found in sidebar.less -->
     <section class="sidebar">
-
-      
       <!-- Sidebar Menu -->
       <ul class="sidebar-menu">
         <li class="header">Chức năng chính</li>
@@ -94,8 +89,8 @@ desired effect
         <li class="active"><a href="#"><i class="fa fa-th"></i> <span>Home</span></a></li>
         <li><a href="dssv.php"><i class="fa fa-table"></i> <span>Danh sách sinh viên</span></a></li>   
         <li><a href="dssv_edit.php"><i class="fa fa-edit"></i> <span>Thay đổi danh sách</span></a></li>
-        <li><a href="dssv_edit.php"><i class="fa fa-lightbulb-o"></i> <span>Điều Khiển thiết bị</span></a></li>
-        <li><a href="dssv_edit.php"><i class="fa fa-download"></i> <span>FOTA</span></a></li> 		
+        <li><a href="control_devices.php"><i class="fa fa-lightbulb-o"></i> <span>Điều Khiển thiết bị</span></a></li>
+        <li><a href="control_devices.php"><i class="fa fa-download"></i> <span>FOTA</span></a></li> 		
       </ul>
       <!-- /.sidebar-menu -->
     </section>
@@ -106,75 +101,63 @@ desired effect
   <div class="content-wrapper">
     <!-- Content Header (Page header) -->
     <section class="content-header">
-      <h1>
-        Điều khiển và giám sát thiết bị trong phòng
-      </h1>
-      <ol class="breadcrumb">
-        <li><a href="index.html"><i class="fa fa-dashboard"></i> Home</a></li>
-        <li class="active"><a href="#">Điều khiển và giám sát thiết bị trong phòng</a></li>
-      </ol>
+        <h1>
+          Điều khiển và giám sát thiết bị trong phòng
+        </h1>
+        <ol class="breadcrumb">
+          <li><a href="index.html"><i class="fa fa-dashboard"></i> Home</a></li>
+          <li class="active"><a href="#">Điều khiển và giám sát thiết bị trong phòng</a></li>
+        </ol>
     </section>
-	
+
     <!-- Main content -->
     <section class="content">
-		<div class="row">
-			<div class="col-xs-12">
-			<div class="box">
-				<div class="box-header">
-				  <h3 class="box-title">Điều khiển và giám sát thiết bị trong phòng</h3>
-				</div>
-				<!-- /.box-header -->
-					<div class="box-body">
-					  <table id="example2" class="table table-bordered table-hover">
-						<thead>
-						<tr>
-							<th>MSSV</th>
-							<th>UID</th>
-							<th>Ho Ten</th>
-							<th>Thoi Gian</th>
-						</tr>
-						</thead>
-						<tbody>
-							<?php
-								$con = mysqli_connect('localhost','khanhpham','123456','smart_class');
-								if (!$con) {
-									die('Could not connect: ' . mysqli_error($con));
-								}
-								
-								$sql="SELECT * FROM DanhSachSinhVien";
-								$result = mysqli_query($con,$sql);
-								
-								while($row = mysqli_fetch_array($result)) {
-									echo "<tr>";
-									echo "<td>" . $row['MSSV'] . "</td>";
-									echo "<td>" . $row['UID'] . "</td>";
-									echo "<td>" . $row['HoTen'] . "</td>";
-									echo "<td>" . $row['ThoiGian'] . "</td>";
-									
-									echo "<td><a href='dssv_edit_giaodien.php?MSSV=". $row['MSSV'] ."'>Edit</a></td>";
-									echo "<td><a href='delete.php?MSSV=". $row['MSSV'] ."'>Delete</a></td>";
-									
-									echo "</tr>";
-								}
-								
-								echo "<tr><form action='add.php' method='get'><td><input type='text' name='MSSV'></td>";
-								echo "<td><input type='text' name='UID'></td>";
-								echo "<td><input type='text' name='HoTen'></td>";
-								echo "<td><input type='submit' value='Add'></td></form></tr>";
-								mysqli_close($con);
-							?>
-						</tbody>
-					  </table>
-					</div>
-					<!-- /.box-body -->
-			</div>
-			<!-- /.box -->
-			 
-					 
-			 
-			</div>
+
+      <div class="container">
+      <div class="row">
+        <div class="col-md-8">
+        <div class="portlet">
+              <div class="portlet-header">
+                <h3>
+                    <i class="fa fa-lightbulb-o"></i>
+                    Control devices
+                </h3>
+              </div>
+              <!-- /.portlet-header -->
+              <div class="portlet-content">
+                <!-- <div id="donut-chart" class="chart-holder-225"></div>-->
+
+                
+
+
+              </div>
+              <!-- /.portlet-content -->
+          </div>
+          <!-- /.portlet -->
+        </div>
+
+
+      <!-- /.portlet -->
+      <div class="col-md-4">
+        <div class="portlet">
+            <div class="portlet-header">
+              <h3>
+                  <i class="fa fa-bar-chart-o"></i>
+                  Temp & Humidity
+              </h3>
+            </div>
+            <!-- /.portlet-header -->
+            <div class="portlet-content">
+              <!-- <div id="donut-chart" class="chart-holder-225"></div>-->
+              <div id="cambien"><?php require "circle-progress.php";?></div>
+            </div>
+            <!-- /.portlet-content -->
+        </div>
+        <!-- /.portlet -->
       </div>
-	</section>
+
+    </section>
+
     <!-- /.content -->
   </div>
   <!-- /.content-wrapper -->

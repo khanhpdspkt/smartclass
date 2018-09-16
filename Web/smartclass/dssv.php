@@ -93,7 +93,9 @@ desired effect
         <!-- Optionally, you can add icons to the links -->
         <li><a href="index.html"><i class="fa fa-th"></i> <span>Home</span></a></li>
         <li class="active"><a href="#"><i class="fa fa-table"></i> <span>Danh sách sinh viên</span></a></li>   
-		<li><a href="dssv_edit.php"><i class="fa fa-edit"></i> <span>Thay đổi danh sách</span></a></li> 		
+        <li><a href="dssv_edit.php"><i class="fa fa-edit"></i> <span>Thay đổi danh sách</span></a></li>
+        <li><a href="control_devices.php"><i class="fa fa-lightbulb-o"></i> <span>Điều Khiển thiết bị</span></a></li>
+        <li><a href="control_devices.php"><i class="fa fa-download"></i> <span>FOTA</span></a></li> 		
       </ul>
       <!-- /.sidebar-menu -->
     </section>
