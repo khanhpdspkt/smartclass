@@ -3,7 +3,7 @@
 #include <Wire.h>
 #include <Adafruit_NFCShield_I2C.h>
 
-#define IRQ   (23)
+#define IRQ   (14)
 #define RESET (5)  // Not connected by default on the NFC Shield
 
 Adafruit_NFCShield_I2C nfc(IRQ, RESET);
