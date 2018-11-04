@@ -8,6 +8,8 @@ const char* ssid = "UTE shooting girl";
 const char* password = "Apple_123456";
 int temp;
 int humi;
+uint8_t DV1, DV2, DV3, DV4;
+
 
 void setup() {
   // put your setup code here, to run once:

@@ -4,30 +4,48 @@
 #include <TFT_eSPI.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include "Ticker.h"
 
-#define IRQ   (14)
-#define RESET (5)                     // Not connected by default on the NFC Shield
+#define IRQ     (14)
+#define RESET   (5)                     // Not connected by default on the NFC Shield
+#define BUZZER  (12)
 
 //const char* ssid = "Linh Nam";
 //const char* password =  "0919607667";
-const char* ssid = "UTE shooting girl";
-const char* password = "Apple_123456";
+//const char* ssid = "UTE shooting girl";
+//const char* password = "Apple_123456";
+const char* ssid = "D304";
+const char* password = "123abcxyz";
 
 Adafruit_NFCShield_I2C nfc(IRQ, RESET);
 TFT_eSPI myGLCD = TFT_eSPI();
 
 void ScanTag(void *pvParameters);
+void GetStatusDevices(void *pvParameters);
 SemaphoreHandle_t xMutex;
 
 /* Status of devices */
 uint8_t DV1, DV2, DV3, DV4;
 
+/** Ticker for get status of devices */
+Ticker tempTicker;
+
+/** Task handle for the light value read task */
+TaskHandle_t tempTaskHandle = NULL;
+
+/* Configure BUZZER */
+int freq = 2000;
+int channel = 0;
+int resolution = 8;
+
+StaticJsonDocument<150> doc;
+
 void setup() {
 	// put your setup code here, to run once:
+  /* Setup Serial */
 	Serial.begin(115200);
-	Serial.println("Demo PN532!");
-  nfc.
-
+ 
 	// Setup the PN532
 	nfc.begin();
 
@@ -35,15 +53,20 @@ void setup() {
 	myGLCD.init();
 	myGLCD.setRotation(1);
 
-	// Set up network to send and receive data
-//	WiFi.begin(ssid, password);
-//	/* Check for the connection */
-//	while (WiFi.status() != WL_CONNECTED) {
-//		delay(1000);
-//		Serial.println("Connecting to WiFi..");
-//	}
-//	Serial.println("Connected to the WiFi network");
+  /* Setup BUZZER */
+  ledcSetup(channel, freq, resolution);
+  ledcAttachPin(BUZZER, channel);
 
+	// Set up network to send and receive data
+	WiFi.begin(ssid, password);
+	/* Check for the connection */
+	while (WiFi.status() != WL_CONNECTED) {
+		delay(1000);
+		Serial.println("Connecting to WiFi..");
+	}
+	Serial.println("Connected to the WiFi network");
+
+  /* Get version of pn532 */
 	uint32_t versiondata = nfc.getFirmwareVersion();
 	if (!versiondata) {
 		Serial.print("Didn't find PN53x board");
@@ -77,6 +100,20 @@ void setup() {
 		5,                             /* Priority of the task */
 		NULL,                          /* Task handle. */
 		1);                            /* Core where the task should run */
+
+  // Start task to get status of devices
+  xTaskCreatePinnedToCore(
+    GetStatusDevices,              /* Function toimplement the task */
+    "GetStatusDevices",           /* Name of the task */
+    4000,                          /* Stack size in words */
+    NULL,                          /* Task input parameter */
+    5,                             /* Priority of the task */
+    &tempTaskHandle,               /* Task handle. */
+    1);                            /* Core where the task should run */
+
+  /* Init ticker to trigger get status of devices*/
+  // Start update of environment data every 20 seconds
+  tempTicker.attach(60, triggerGetStatus);
 }
 
 void loop() {
@@ -102,10 +139,21 @@ void ScanTag(void *pvParameters) {
       Serial.print("UID Length: ");Serial.print(uidLength, DEC);Serial.println(" bytes");
       Serial.print("UID Value: ");
       sprintf(buffer, "%X:%X:%X:%X", uid[0], uid[1], uid[2], uid[3]);
-      sendData = "UID=" + String(buffer);                             // Prepare data to send
+      sendData = "uid=" + String(uid[0]) + String(uid[1]) + String(uid[2]) + String(uid[3]);// Prepare data to send
       
       myGLCD.setTextColor(TFT_WHITE, TFT_BLUE);
       myGLCD.drawCentreString(buffer, 160, 100, 4);
+
+      /* Tone */
+      for (int dutyCycle = 0; dutyCycle < 3; dutyCycle++){
+        ledcWrite(channel, 200);
+        delay(50);
+
+        ledcWrite(channel, 25);
+        delay(50);
+      }
+      /* Turn off buzzer */
+      ledcWrite(channel, 0);
       
       for (uint8_t i=0; i < uidLength; i++) {
         Serial.print(" 0x");Serial.print(uid[i], HEX); 
@@ -122,11 +170,11 @@ void ScanTag(void *pvParameters) {
               /* We were able to obtain the semaphore and can now access the
               shared resource. */
 
-              /*
+              
               if(WiFi.status()== WL_CONNECTED) //Check WiFi connection status
               {
                 HTTPClient http;   
-                http.begin("http://192.168.1.19:8080/Test/Test.php");  //Specify destination for HTTP request
+                http.begin("http://192.168.1.19:8080/smartclass/systems.php");  //Specify destination for HTTP request
                 http.addHeader("Content-Type", "application/x-www-form-urlencoded");             //Specify content-type header
                 int httpResponseCode = http.POST(sendData);   //Send the actual POST request
                 
@@ -148,7 +196,7 @@ void ScanTag(void *pvParameters) {
               {
                 Serial.println("Error in WiFi connection");   
               }
-              */
+              
               
               /* We have finished accessing the shared resource.  Release the
               semaphore. */
@@ -173,7 +221,7 @@ void ScanTag(void *pvParameters) {
   }
 }
 
-void GetStatusDevices(void) {
+void GetStatusDevices(void *pvParameters) {
   while (1) {
     if( xMutex != NULL )
     {
@@ -195,8 +243,9 @@ void GetStatusDevices(void) {
                 deserializeJson(doc, response);
                 JsonObject obj = doc.as<JsonObject>();
                 DV1 = obj[String("Dv1")];
-                
-                Serial.println(DV1);                            //Print return code
+                DV2 = obj[String("Dv2")];
+                DV3 = obj[String("Dv3")];
+                DV4 = obj[String("Dv4")];
                 Serial.println(response);                       //Print request answer
               } 
               else {
@@ -220,9 +269,36 @@ void GetStatusDevices(void) {
             the shared resource safely. */
         }
     }/* End mutex checking */
-    
+    // Got sleep again
+    vTaskSuspend(NULL);
   } /*End while loop */
 }
 
-void readTemperature(void) {
+/**
+ * triggerGetTemp
+ * Set flag dhtUpdated to true for handling in loop()
+ * call by Ticker getTempTimer
+ */
+void triggerGetStatus(void) {
+  if (tempTaskHandle != NULL) {
+    xTaskResumeFromISR(tempTaskHandle);
+  }
+}
+
+/**
+ * Task to read temperature from DHT22 sensor
+ * &param pvParameters
+ *    pointer to task parameter
+ */
+void getStatusTask(void *pvParameters) {
+  Serial.println("getStatusTask loop started");
+  while (1) // getStatusTask loop
+  {
+//    if (tasksEnabled) {
+//      // Get temperature values
+//      GetStatusDevices();
+//    }
+//    // A task can suspend itself by passing NULL in place of a valid task handle
+//    vTaskSuspend(NULL);
+  }
 }
