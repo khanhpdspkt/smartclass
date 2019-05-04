@@ -61,6 +61,7 @@ DeviceStatus dvStatus;
 QueueHandle_t queue_dht;
 
 String response_uid;
+String response_data;
 
 /* Declare variables */
 boolean success;                          // status when reading tag
@@ -280,7 +281,6 @@ void scanTagTask(void *pvParameters)
       Serial.println("");
 #endif  
       
-
 #if defined(ENABLE_CONNECT_CLOUD)
       sendData = "uid=" + String(uid[0], HEX) + String(uid[1], HEX) + String(uid[2], HEX) + String(uid[3], HEX);// Prepare data to send
       int result = pushDataToServer(sendData, RX_READ, response_uid);
@@ -317,6 +317,7 @@ void scanTagTask(void *pvParameters)
 
 void getStatusDevices(void *pvParameters) 
 {
+  
   while (1) 
   {
     if(WiFi.status()== WL_CONNECTED)   //Check WiFi connection status
@@ -369,6 +370,7 @@ void getStatusDevices(void *pvParameters)
  *    pointer to task parameters
  */
 void tempTask(void *pvParameters) {
+  String sendData;
   Serial.println("tempTask loop started");
   while (1) // tempTask loop
   {
@@ -386,6 +388,19 @@ void tempTask(void *pvParameters) {
     sprintf(str, "Temp: %0.2f \t Humi: %0.1f", dhtData.temperature, dhtData.humidity);
     Serial.println(str); //print the string to the serial port
 #endif
+
+#if defined(ENABLE_CONNECT_CLOUD)
+      // Make our document be an object
+      JsonObject root = doc.to<JsonObject>();
+      root["Temp"] = dhtData.temperature;
+      root["Humi"] = dhtData.humidity;
+      serializeJsonPretty(root, sendData);
+      
+      int result = pushDataToServer(sendData, TYPE_JSON, response_data);
+      Serial.println(sendData);
+      Serial.println(response_data);
+#endif
+
     // Got sleep again
     vTaskSuspend(NULL);
   }
