@@ -198,6 +198,8 @@ void setup() {
 #if defined(ENABLE_CONNECT_CLOUD)
   tempTicker.attach(20, triggerGetStatus);
 #endif
+
+  tempTicker_dht.attach(10, triggerGetTemp);
   
   delay(1000);
   
@@ -376,9 +378,14 @@ void tempTask(void *pvParameters) {
     // Check if any reads failed and exit early (to try again).
     if (dht.getStatus() != 0) {
 #if defined (ENABLE_DEBUG)
-      Serial.println("DHT11 error status: " + String(dht.getStatusString()));
+      Serial.println("DHT22 error status: " + String(dht.getStatusString()));
 #endif
     }
+#if defined (ENABLE_DEBUG)
+    char str[20];   //declare a string as an array of chars
+    sprintf(str, "Temp: %0.2f \t Humi: %0.1f", dhtData.temperature, dhtData.humidity);
+    Serial.println(str); //print the string to the serial port
+#endif
     // Got sleep again
     vTaskSuspend(NULL);
   }
