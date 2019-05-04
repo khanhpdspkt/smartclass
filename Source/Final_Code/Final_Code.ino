@@ -101,6 +101,7 @@ SemaphoreHandle_t xMutex_post;              // Mutex use to send data to host be
 TaskHandle_t getStatusTaskHandle = NULL;    // Task handle for the read task of device status 
 TaskHandle_t tempTaskHandle = NULL;         // Task handle for the light value read task
 Ticker tempTicker;                          // Ticker for get status of devices
+Ticker tempTicker_dht;                      // Ticker for read temperature and humidity
 
 // For setting up critical sections (enableinterrupts and disableinterrupts not available)
 // used to disable and interrupt interrupts
@@ -174,14 +175,17 @@ void setup() {
   //Configure buttons
   pinMode(BUTTON_MENU_PIN, INPUT);
   for (int i = 0; i < NUM_BUTTONS; i++) {
-    buttons[i].attach( BUTTON_PINS[i] , INPUT_PULLUP  );       //setup the bounce instance for the current button
+    buttons[i].attach( BUTTON_PINS[i] , INPUT );       //setup the bounce instance for the current button
     buttons[i].interval(25);              // interval in ms
   }
   attachInterrupt(digitalPinToInterrupt(BUTTON_MENU_PIN), handleInterrupt, HIGH);
  
   /* create Mutex */
   xMutex_i2c = xSemaphoreCreateMutex();
+  
+#if defined(ENABLE_CONNECT_CLOUD)
   xMutex_post = xSemaphoreCreateMutex();
+#endif
 
   queue_dht = xQueueCreate( 10, sizeof( TempAndHumidity * ) );
   
@@ -200,6 +204,16 @@ void setup() {
     4,                             /* Priority of the task */
     NULL,                          /* Task handle. */
     1);                            /* Core where the task should run */
+
+  // Start task to get temperature
+  xTaskCreatePinnedToCore(
+      tempTask,                       /* Function to implement the task */
+      "tempTask ",                    /* Name of the task */
+      4000,                           /* Stack size in words */
+      NULL,                           /* Task input parameter */
+      5,                              /* Priority of the task */
+      &tempTaskHandle,                /* Task handle. */
+      1);                             /* Core where the task should run */
 
 #if defined(ENABLE_CONNECT_CLOUD)
   // Start task to get status of devices
@@ -330,6 +344,30 @@ void getStatusDevices(void *pvParameters)
     // Got sleep again
     vTaskSuspend(NULL);
   } /*End while loop */
+}
+
+
+/**
+ * Task to reads temperature from DHT11 sensor
+ * @param pvParameters
+ *    pointer to task parameters
+ */
+void tempTask(void *pvParameters) {
+  Serial.println("tempTask loop started");
+  while (1) // tempTask loop
+  {
+    // Reading temperature for humidity takes about 250 milliseconds!
+    // Sensor readings may also be up to 2 seconds 'old' (it's a very slow sensor)
+    dhtData = dht.getTempAndHumidity();
+    // Check if any reads failed and exit early (to try again).
+    if (dht.getStatus() != 0) {
+#if defined (ENABLE_DEBUG)
+      Serial.println("DHT11 error status: " + String(dht.getStatusString()));
+#endif
+    }
+    // Got sleep again
+    vTaskSuspend(NULL);
+  }
 }
 
 void mainTask(void *pvParameters)

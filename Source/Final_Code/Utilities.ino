@@ -148,3 +148,17 @@ void triggerGetStatus(void) {
   Serial.println("Trigge to get data");
   vTaskResume(getStatusTaskHandle);
 }
+
+
+/**
+ * triggerGetTemp
+ * Sets flag dhtUpdated to true for handling in loop()
+ * called by Ticker getTempTimer
+ */
+void triggerGetTemp() 
+{
+  if (tempTaskHandle != NULL) 
+  {
+     xTaskResumeFromISR(tempTaskHandle);
+  }
+}
