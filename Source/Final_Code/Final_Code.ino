@@ -176,9 +176,15 @@ void setup() {
   pinMode(BUTTON_MENU_PIN, INPUT);
   for (int i = 0; i < NUM_BUTTONS; i++) {
     buttons[i].attach( BUTTON_PINS[i] , INPUT );       //setup the bounce instance for the current button
-    buttons[i].interval(25);              // interval in ms
+    buttons[i].interval(25);                           // interval in ms
   }
   attachInterrupt(digitalPinToInterrupt(BUTTON_MENU_PIN), handleInterrupt, HIGH);
+
+  //Configure device pins
+  pinMode(RELAY_DV1, OUTPUT);
+  pinMode(RELAY_DV2, OUTPUT);
+  pinMode(RELAY_DV3, OUTPUT);
+  pinMode(RELAY_DV4, OUTPUT);
  
   /* create Mutex */
   xMutex_i2c = xSemaphoreCreateMutex();
@@ -313,6 +319,7 @@ void getStatusDevices(void *pvParameters)
   {
     if(WiFi.status()== WL_CONNECTED)   //Check WiFi connection status
     {
+      SEMAPHORE_TAKE(xMutex_post, HTTP_POST_TIMEOUT);
       HTTPClient http;   
       http.begin(String(host) + "/smartclass/controller.php");  //Specify destination for HTTP request
       int httpResponseCode = http.GET();   //Send the actual POST request
@@ -335,11 +342,18 @@ void getStatusDevices(void *pvParameters)
       }
       //Free resources
       http.end();
+      SEMAPHORE_GIVE(xMutex_post);
     }
     else
     {
       Serial.println("Error in WiFi connection");   
     }
+    
+    //Control devices after get status from internet
+    digitalWrite(RELAY_DV1, dvStatus.DV1);
+    digitalWrite(RELAY_DV2, dvStatus.DV2);
+    digitalWrite(RELAY_DV3, dvStatus.DV3);
+    digitalWrite(RELAY_DV4, dvStatus.DV4);
     
     // Got sleep again
     vTaskSuspend(NULL);

@@ -100,9 +100,9 @@ void readtimeTask(RtcDateTime &nowTime)
  */
 uint8_t pushDataToServer(String DataToSend, uint8_t type, String &response)
 {
-  SEMAPHORE_TAKE(xMutex_post, HTTP_POST_TIMEOUT);
   if(WiFi.status()== WL_CONNECTED)   //Check WiFi connection status
   {
+    SEMAPHORE_TAKE(xMutex_post, HTTP_POST_TIMEOUT);
     HTTPClient http;   
     http.begin(String(host) + "/smartclass/systems.php");   //Specify destination for HTTP request
     if(type == TYPE_JSON) 
@@ -125,17 +125,19 @@ uint8_t pushDataToServer(String DataToSend, uint8_t type, String &response)
     {
       Serial.print("Error on sending POST: ");
       Serial.println(httpResponseCode);
+      SEMAPHORE_GIVE(xMutex_post);
       return 0;
     }
     //Free resources
     http.end();
+   SEMAPHORE_GIVE(xMutex_post);
   }
   else
   {
     Serial.println("Error in WiFi connection");
     return 0;
   }
-  SEMAPHORE_GIVE(xMutex_post);
+  
   return 1;
 }
 
