@@ -125,7 +125,7 @@ uint8_t pushDataToServer(String DataToSend, uint8_t type, String &response)
     {
       Serial.print("Error on sending POST: ");
       Serial.println(httpResponseCode);
-      return false;
+      return 0;
     }
     //Free resources
     http.end();
@@ -137,4 +137,14 @@ uint8_t pushDataToServer(String DataToSend, uint8_t type, String &response)
   }
   SEMAPHORE_GIVE(xMutex_post);
   return 1;
+}
+
+/**
+ * triggerGetStatus
+ * Set flag dhtUpdated to true for handling in loop()
+ * call by Ticker getTempTimer
+ */
+void triggerGetStatus(void) {
+  Serial.println("Trigge to get data");
+  vTaskResume(getStatusTaskHandle);
 }

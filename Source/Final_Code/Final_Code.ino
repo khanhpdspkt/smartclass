@@ -1,4 +1,3 @@
-
 #include <Wire.h>
 #include <Adafruit_NFCShield_I2C.h>
 #include <RtcDS3231.h>  //RTC library
@@ -7,12 +6,22 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include "DHTesp.h"
 #include "Ticker.h"
-
+#include <Bounce2.h>
+#include "time.h"
 
 #include "define.h"
 
-
+/**************************************************************/
+/* Example how to read DHT sensors from an ESP32 using multi- */
+/* tasking.                                                   */
+/* This example depends on the ESP32Ticker library to wake up */
+/* the task every 20 seconds                                  */
+/* Please install Ticker-esp32 library first                  */
+/* bertmelis/Ticker-esp32                                     */
+/* https://github.com/bertmelis/Ticker-esp32                  */
+/**************************************************************/
 
 enum Content_Type {
   TYPE_JSON,
@@ -34,18 +43,24 @@ struct DeviceStatus
 const char* ssid = "ziroom201";
 const char* password =  "ziroomer002";
 
-const char* host = "http://192.168.0.105:8080";
+//const char* host = "http://192.168.0.105:8080";
+const char* host = "http://192.168.0.107:80";
 
 void scanTagTask(void *pvParameters);
-void readtimeTask(RtcDateTime &nowTime);
 
 U8G2_ST7565_NHD_C12864_F_4W_SW_SPI u8g2(U8G2_MIRROR, /* clock=*/ 18, /* data=*/ 23, /* cs=*/ 5, /* dc=*/ 17, /* reset=*/ 8);
 Adafruit_NFCShield_I2C nfc(PN532_IRQ, RESET);
 RtcDS3231<TwoWire> rtcObject(Wire);   //Uncomment for version 2.0.0 of the rtc library
 StaticJsonDocument<150> doc;
 RtcDateTime currentTime;
+DHTesp dht;
+TempAndHumidity dhtData;
+TempAndHumidity *pdhtData;
+Bounce * buttons = new Bounce[NUM_BUTTONS];
 DeviceStatus dvStatus;
-QueueHandle_t queue;
+QueueHandle_t queue_dht;
+
+String response_uid;
 
 /* Declare variables */
 boolean success;                          // status when reading tag
@@ -83,11 +98,18 @@ char* Day_Of_Week[]={
 /* declare variables for rtos */
 SemaphoreHandle_t xMutex_i2c;               // Mutex use to comunicate i2c
 SemaphoreHandle_t xMutex_post;              // Mutex use to send data to host between tasks
-TaskHandle_t getStatusTaskHandle = NULL;    // Task handle for the light value read task
+TaskHandle_t getStatusTaskHandle = NULL;    // Task handle for the read task of device status 
+TaskHandle_t tempTaskHandle = NULL;         // Task handle for the light value read task
 Ticker tempTicker;                          // Ticker for get status of devices
+
+// For setting up critical sections (enableinterrupts and disableinterrupts not available)
+// used to disable and interrupt interrupts
+
+portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 void IRAM_ATTR handleInterrupt() 
 {
+  portENTER_CRITICAL_ISR(&mux);
   if(MenuStatus == 0)
   {
     MenuStatus = 1;
@@ -96,6 +118,7 @@ void IRAM_ATTR handleInterrupt()
   {
     MenuStatus = 0;
   }
+  portEXIT_CRITICAL_ISR(&mux);
 }
 
 void setup() {
@@ -103,13 +126,13 @@ void setup() {
 
   /* Setup Serial */
   Serial.begin(115200);
-
   u8g2.begin();
 
   /* Setup BUZZER */
   ledcSetup(channel, freq, resolution);
   ledcAttachPin(BUZZER_PIN, channel);
-
+  
+#if defined(ENABLE_CONNECT_CLOUD)
   // Set up network to send and receive data
   WiFi.begin(ssid, password);
   /* Check for the connection */
@@ -118,13 +141,14 @@ void setup() {
     Serial.println("Connecting to WiFi..");
   }
   Serial.println("Connected to the WiFi network");
+#endif
 
   /* Initialize DS3231 */
   rtcObject.Begin();     //Starts I2C
   RtcDateTime currentTime = RtcDateTime(18, 11, 23, 7, 34, 0); //define date and time object
   rtcObject.SetDateTime(currentTime); //configure the RTC with object
 
-  // Setup the PN532
+  //Initialize RFID reader
   nfc.begin();
   /* Get version of pn532 */
   uint32_t versiondata = nfc.getFirmwareVersion();
@@ -144,24 +168,50 @@ void setup() {
   nfc.SAMConfig();
   Serial.println("Waiting for an ISO14443A card");
 
-  //Configure for pin MENU and interrupt
-  pinMode(BUTTON_MENU, INPUT);
-  attachInterrupt(digitalPinToInterrupt(BUTTON_MENU), handleInterrupt, HIGH);
+  // Initialize temperature sensor
+  dht.setup(DHT22_PIN, DHTesp::DHT22);
+
+  //Configure buttons
+  pinMode(BUTTON_MENU_PIN, INPUT);
+  for (int i = 0; i < NUM_BUTTONS; i++) {
+    buttons[i].attach( BUTTON_PINS[i] , INPUT_PULLUP  );       //setup the bounce instance for the current button
+    buttons[i].interval(25);              // interval in ms
+  }
+  attachInterrupt(digitalPinToInterrupt(BUTTON_MENU_PIN), handleInterrupt, HIGH);
  
   /* create Mutex */
   xMutex_i2c = xSemaphoreCreateMutex();
   xMutex_post = xSemaphoreCreateMutex();
+
+  queue_dht = xQueueCreate( 10, sizeof( TempAndHumidity * ) );
+  
+#if defined(ENABLE_CONNECT_CLOUD)
+  tempTicker.attach(20, triggerGetStatus);
+#endif
   
   delay(1000);
+  
   // Start task to scan tag
   xTaskCreatePinnedToCore(
-    scanTagTask,                       /* Function toimplement the task */
-    "scanTagTask",                    /* Name of the task */
+    scanTagTask,                   /* Function toimplement the task */
+    "scanTagTask",                 /* Name of the task */
     2000,                          /* Stack size in words */
     NULL,                          /* Task input parameter */
     4,                             /* Priority of the task */
     NULL,                          /* Task handle. */
     1);                            /* Core where the task should run */
+
+#if defined(ENABLE_CONNECT_CLOUD)
+  // Start task to get status of devices
+  xTaskCreatePinnedToCore(
+    getStatusDevices,              /* Function toimplement the task */
+    "GetStatusDevices",            /* Name of the task */
+    2000,                          /* Stack size in words */
+    NULL,                          /* Task input parameter */
+    5,                             /* Priority of the task */
+    &getStatusTaskHandle,          /* Task handle. */
+    1);                            /* Core where the task should run */
+#endif
 
   // Start task to scan tag
   xTaskCreatePinnedToCore(
@@ -207,11 +257,13 @@ void scanTagTask(void *pvParameters)
       }
       Serial.println("");
 #endif  
-      sendData = "uid=" + String(uid[0], HEX) + String(uid[1], HEX) + String(uid[2], HEX) + String(uid[3], HEX);// Prepare data to send
-      Serial.println(sendData);
+      
 
 #if defined(ENABLE_CONNECT_CLOUD)
-      pushDataToServer(sendData, RX_READ, responsed);
+      sendData = "uid=" + String(uid[0], HEX) + String(uid[1], HEX) + String(uid[2], HEX) + String(uid[3], HEX);// Prepare data to send
+      int result = pushDataToServer(sendData, RX_READ, response_uid);
+      Serial.println(sendData);
+      Serial.println(response_uid);
 #endif
     
       /* Tone */
@@ -240,8 +292,6 @@ void scanTagTask(void *pvParameters)
     // Wait 1 second before continuing
   }
 }
-
-
 
 void getStatusDevices(void *pvParameters) 
 {

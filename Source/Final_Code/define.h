@@ -6,10 +6,10 @@
 #define RESET (19)// Not use
 #define PN532_IRQ               14
 #define BUZZER_PIN              12
-#define BUTTON_MENU             27
-#define BUTTON_RIGH             25
-#define BUTTON_LEFT             26
-#define BUTTON_SELT             02
+#define BUTTON_MENU_PIN         27
+#define BUTTON_RIGH_PIN         25
+#define BUTTON_LEFT_PIN         26
+#define BUTTON_SELT_PIN         02
 
 #define RELAY_DV1               34
 #define RELAY_DV2               35
@@ -20,6 +20,9 @@
 
 //#define ENABLE_DEBUG
 //#define ENABLE_CONNECT_CLOUD
+
+#define NUM_BUTTONS 3
+const uint8_t BUTTON_PINS[NUM_BUTTONS] = {BUTTON_RIGH_PIN, BUTTON_LEFT_PIN, BUTTON_SELT_PIN};
 
 #define SEMAPHORE_TAKE(port, timeOut) do { \
           if (!xSemaphoreTake(port, timeOut / portTICK_RATE_MS)) \
