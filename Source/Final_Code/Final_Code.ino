@@ -8,7 +8,8 @@
 #include <ArduinoJson.h>
 #include "DHTesp.h"
 #include "Ticker.h"
-#include <Bounce2.h>
+#include <EasyButton.h>
+#include <ArduinoTrace.h>
 #include "time.h"
 
 #include "define.h"
@@ -56,7 +57,13 @@ RtcDateTime currentTime;
 DHTesp dht;
 TempAndHumidity dhtData;
 TempAndHumidity *pdhtData;
-Bounce * buttons = new Bounce[NUM_BUTTONS];
+
+// Instance of the button.
+EasyButton buttonMenu(BUTTON_MENU_PIN);
+EasyButton buttonRight(BUTTON_RIGH_PIN);
+EasyButton buttonLeft(BUTTON_LEFT_PIN);
+EasyButton buttonSelect(BUTTON_SELT_PIN);
+
 DeviceStatus dvStatus;
 QueueHandle_t queue_dht;
 
@@ -112,13 +119,15 @@ portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 void IRAM_ATTR handleInterrupt() 
 {
   portENTER_CRITICAL_ISR(&mux);
-  if(MenuStatus == 0)
-  {
-    MenuStatus = 1;
-  }
-  else
-  {
-    MenuStatus = 0;
+
+  buttonMenu.read();
+  if (buttonMenu.wasReleased()) {
+    if (MenuStatus == 0) {
+      MenuStatus = 1;
+    }
+    else {
+      MenuStatus = 0;
+    }
   }
   portEXIT_CRITICAL_ISR(&mux);
 }
@@ -174,12 +183,11 @@ void setup() {
   dht.setup(DHT22_PIN, DHTesp::DHT22);
 
   //Configure buttons
-  pinMode(BUTTON_MENU_PIN, INPUT);
-  for (int i = 0; i < NUM_BUTTONS; i++) {
-    buttons[i].attach( BUTTON_PINS[i] , INPUT );       //setup the bounce instance for the current button
-    buttons[i].interval(25);                           // interval in ms
-  }
-  attachInterrupt(digitalPinToInterrupt(BUTTON_MENU_PIN), handleInterrupt, HIGH);
+  buttonRight.begin();
+  buttonLeft.begin();
+  buttonSelect.begin();
+  buttonMenu.begin();
+  attachInterrupt(digitalPinToInterrupt(BUTTON_MENU_PIN), handleInterrupt, RISING);
 
   //Configure device pins
   pinMode(RELAY_DV1, OUTPUT);
@@ -208,7 +216,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     scanTagTask,                   /* Function toimplement the task */
     "scanTagTask",                 /* Name of the task */
-    2000,                          /* Stack size in words */
+    1000,                          /* Stack size in words */
     NULL,                          /* Task input parameter */
     4,                             /* Priority of the task */
     NULL,                          /* Task handle. */
@@ -218,7 +226,7 @@ void setup() {
   xTaskCreatePinnedToCore(
       tempTask,                       /* Function to implement the task */
       "tempTask ",                    /* Name of the task */
-      4000,                           /* Stack size in words */
+      1000,                           /* Stack size in words */
       NULL,                           /* Task input parameter */
       5,                              /* Priority of the task */
       &tempTaskHandle,                /* Task handle. */
@@ -229,7 +237,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     getStatusDevices,              /* Function toimplement the task */
     "GetStatusDevices",            /* Name of the task */
-    2000,                          /* Stack size in words */
+    1000,                          /* Stack size in words */
     NULL,                          /* Task input parameter */
     5,                             /* Priority of the task */
     &getStatusTaskHandle,          /* Task handle. */
@@ -240,7 +248,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     mainTask,                       /* Function toimplement the task */
     "mainTask",                    /* Name of the task */
-    4000,                          /* Stack size in words */
+    6000,                          /* Stack size in words */
     NULL,                          /* Task input parameter */
     5,                             /* Priority of the task */
     NULL,                          /* Task handle. */
@@ -317,7 +325,6 @@ void scanTagTask(void *pvParameters)
 
 void getStatusDevices(void *pvParameters) 
 {
-  
   while (1) 
   {
     if(WiFi.status()== WL_CONNECTED)   //Check WiFi connection status

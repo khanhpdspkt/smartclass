@@ -3,7 +3,7 @@
 #define I2CDEV_TIMEOUT          100
 #define HTTP_POST_TIMEOUT       1000
 
-#define RESET (19)// Not use
+#define RESET                   19
 #define PN532_IRQ               14
 #define BUZZER_PIN              12
 #define BUTTON_MENU_PIN         27

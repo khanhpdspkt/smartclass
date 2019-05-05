@@ -141,6 +141,38 @@ uint8_t pushDataToServer(String DataToSend, uint8_t type, String &response)
   return 1;
 }
 
+uint8_t getMenuButton(void)
+{
+  uint8_t result;
+  buttonRight.read();
+  buttonLeft.read();
+  buttonSelect.read();
+  
+  if (buttonRight.wasReleased()) 
+  {
+    result = 1;
+  }
+  else if(buttonLeft.wasReleased())
+  {
+    result = 2;
+  }
+  else if(buttonSelect.wasReleased())
+  {
+    result = 3;
+  }
+  else
+  {
+    result = 0;
+  }
+
+#if defined(ENABLE_DEBUG)
+    char str[30];   //declare a string as an array of chars
+    sprintf(str, "Status of Buttons: %d", result);
+    Serial.println(str); //print the string to the serial port
+#endif
+  return result;
+}
+
 /**
  * triggerGetStatus
  * Set flag dhtUpdated to true for handling in loop()

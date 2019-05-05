@@ -2,30 +2,36 @@
 
 void showMenu()
 {
-  do
+  uint8_t event;
+
+  while(1)
   {
-    u8g2.clearBuffer();
-    drawMenu(&current_state);  
-    u8g2.setFont(u8g2_font_helvB10_tr);  
-    u8g2.setCursor((u8g2.getDisplayWidth()-u8g2.getStrWidth(menu_entry_list[destination_state.position].name))/2,u8g2.getDisplayHeight()-5);
-    u8g2.print(menu_entry_list[destination_state.position].name);    
-    u8g2.sendBuffer();
-    delay(10);
-//    event = u8g2.getMenuEvent();
-//    if ( event == U8X8_MSG_GPIO_MENU_NEXT )
-//      toRightMenu(&destination_state);
-//    if ( event == U8X8_MSG_GPIO_MENU_PREV )
-//      toLeftMenu(&destination_state);
-//    if ( event == U8X8_MSG_GPIO_MENU_SELECT )
-//    {
-//      u8g2.setFont(u8g2_font_helvB10_tr);  
-//      u8g2.userInterfaceMessage("Selection:", menu_entry_list[destination_state.position].name, "", " Ok ");
-//    }
-    if(MenuStatus == 0)
+   if(MenuStatus == 0)
     {
       break;
     }
-  } while (1);
+    do
+    {
+      u8g2.clearBuffer();
+      drawMenu(&current_state);  
+      u8g2.setFont(u8g2_font_helvB10_tr);  
+      u8g2.setCursor((u8g2.getDisplayWidth()-u8g2.getStrWidth(menu_entry_list[destination_state.position].name))/2,u8g2.getDisplayHeight()-5);
+      u8g2.print(menu_entry_list[destination_state.position].name);    
+      u8g2.sendBuffer();
+      delay(10);
+      //TRACE();
+      event = getMenuButton();
+      if ( event == 1 )
+        toRightMenu(&destination_state);
+      if ( event == 2 )
+        toLeftMenu(&destination_state);
+      if ( event == 3 )
+      {
+        u8g2.setFont(u8g2_font_helvB10_tr);  
+        u8g2.userInterfaceMessage("Selection:", menu_entry_list[destination_state.position].name, "", " Ok ");
+      }
+    } while (towardsMenu(&current_state, &destination_state) );
+  }
 }
 
 

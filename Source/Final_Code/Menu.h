@@ -28,10 +28,10 @@ struct menu_state
 struct menu_entry_type menu_entry_list[] =
 {
   { u8g2_font_open_iconic_embedded_4x_t, 65, "Clock Setup"},
-  { u8g2_font_open_iconic_embedded_4x_t, 66, "Gear Game"},
-  { u8g2_font_open_iconic_embedded_4x_t, 77, "Control Device"},
+  { u8g2_font_open_iconic_embedded_4x_t, 66, "Setting"},
+  { u8g2_font_open_iconic_embedded_4x_t, 77, "Control Devices"},
   { u8g2_font_open_iconic_embedded_4x_t, 68, "Home"},
-  { u8g2_font_open_iconic_embedded_4x_t, 72, "Configuration"},
+  { u8g2_font_open_iconic_embedded_4x_t, 69, "About"},
   { NULL, 0, NULL } 
 };
 
