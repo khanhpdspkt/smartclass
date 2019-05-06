@@ -3,13 +3,9 @@
 void showMenu()
 {
   uint8_t event;
-
+  uint8_t eventExit = 0;
   while(1)
   {
-   if(MenuStatus == 0)
-    {
-      break;
-    }
     do
     {
       u8g2.clearBuffer();
@@ -27,10 +23,28 @@ void showMenu()
         toLeftMenu(&destination_state);
       if ( event == 3 )
       {
-        u8g2.setFont(u8g2_font_helvB10_tr);  
-        u8g2.userInterfaceMessage("Selection:", menu_entry_list[destination_state.position].name, "", " Ok ");
+        if(menu_entry_list[destination_state.position].name == "Clock Setup") {
+#if defined(ENABLE_CONNECT_CLOUD)
+          getTimeFromInternetAndUpdate();
+#endif
+          break;
+        }
+        else if(menu_entry_list[destination_state.position].name == "Home")
+        {
+          eventExit = 1;
+          Serial.println("Home");
+          break;
+        }
+        else {
+          break;
+        }
       }
     } while (towardsMenu(&current_state, &destination_state) );
+    /* Check if exit menu*/
+    if(eventExit == 1)
+    {
+      break;
+    }
   }
 }
 

@@ -52,8 +52,9 @@ void Screen_2(void)
   u8g2.drawStr( 78, 35, "MIN");
   u8g2.drawStr( 78, 53, "MAX");
   u8g2.setFont(u8g_font_6x13);
-  u8g2.setCursor(25, 41);
-  u8g2.print(Day_Of_Week[(currentTime.DayOfWeek() - 1)]);
+  //u8g2.setCursor(25, 41);
+  //u8g2.print(Day_Of_Week[(currentTime.DayOfWeek() - 1)]);
+  u8g2.drawXBMP(5, 25, Temperature_16Icon_width, Temperature_16Icon_height, Temperature_16Icon_bits);
   
   //Update actual temperature
   u8g2.setCursor(83, 19);
@@ -181,6 +182,36 @@ uint8_t getMenuButton(void)
 void triggerGetStatus(void) {
   Serial.println("Trigge to get data");
   vTaskResume(getStatusTaskHandle);
+}
+
+
+uint8_t getTimeFromInternetAndUpdate(void)
+{ 
+  if(WiFi.status()== WL_CONNECTED)   //Check WiFi connection status
+  {
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+#if defined(ENABLE_DEBUG)
+      Serial.println("Failed to obtain time");
+#endif
+      return 0;
+    }
+#if defined(ENABLE_DEBUG)
+    Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+#endif
+    RtcDateTime nowTime = RtcDateTime(timeinfo.tm_year%100, timeinfo.tm_mon + 1, timeinfo.tm_mday, 
+                        timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec); //define date and time object
+    rtcObject.SetDateTime(nowTime); //configure the RTC with object;
+  }
+  else
+  {
+#if defined(ENABLE_DEBUG)
+    Serial.println("Error in WiFi connection");
+#endif
+    return 0;
+  }
+  return 1;
 }
 
 

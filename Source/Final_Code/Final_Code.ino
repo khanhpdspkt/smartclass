@@ -1,3 +1,6 @@
+
+
+
 #include <Wire.h>
 #include <Adafruit_NFCShield_I2C.h>
 #include <RtcDS3231.h>  //RTC library
@@ -10,7 +13,9 @@
 #include "Ticker.h"
 #include <EasyButton.h>
 #include <ArduinoTrace.h>
-#include "time.h"
+
+#include <EasyNTPClient.h>
+#include <WiFiUdp.h>
 
 #include "define.h"
 
@@ -69,6 +74,7 @@ QueueHandle_t queue_dht;
 
 String response_uid;
 String response_data;
+ struct tm timeinfo;
 
 /* Declare variables */
 boolean success;                          // status when reading tag
@@ -143,7 +149,7 @@ void setup() {
   ledcSetup(channel, freq, resolution);
   ledcAttachPin(BUZZER_PIN, channel);
   
-#if defined(ENABLE_CONNECT_CLOUD)
+//#if defined(ENABLE_CONNECT_CLOUD)
   // Set up network to send and receive data
   WiFi.begin(ssid, password);
   /* Check for the connection */
@@ -152,7 +158,7 @@ void setup() {
     Serial.println("Connecting to WiFi..");
   }
   Serial.println("Connected to the WiFi network");
-#endif
+//#endif
 
   /* Initialize DS3231 */
   rtcObject.Begin();     //Starts I2C
@@ -202,14 +208,14 @@ void setup() {
   xMutex_post = xSemaphoreCreateMutex();
 #endif
 
-  queue_dht = xQueueCreate( 10, sizeof( TempAndHumidity * ) );
+  //ueue_dht = xQueueCreate( 10, sizeof( TempAndHumidity * ) );
   
 #if defined(ENABLE_CONNECT_CLOUD)
   tempTicker.attach(20, triggerGetStatus);
 #endif
 
   tempTicker_dht.attach(10, triggerGetTemp);
-  
+
   delay(1000);
   
   // Start task to scan tag
@@ -417,8 +423,9 @@ void mainTask(void *pvParameters)
 {
   while(1)
   {
-    if (MenuStatus == 1)
+    if (MenuStatus  == 1)
     {
+      MenuStatus  =  0;
       showMenu();
     }
     // Read time from DS3231
