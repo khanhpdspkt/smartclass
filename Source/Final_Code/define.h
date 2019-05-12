@@ -1,5 +1,7 @@
 /* define pin for connection */
 
+#define FIRMWARE_VERSION        0.1
+
 #define I2CDEV_TIMEOUT          100
 #define HTTP_POST_TIMEOUT       1000
 
@@ -19,7 +21,7 @@
 #define DHT22_PIN               15
 
 //#define ENABLE_DEBUG
-//#define ENABLE_CONNECT_CLOUD
+#define ENABLE_CONNECT_CLOUD
 
 #define NUM_BUTTONS 3
 const uint8_t BUTTON_PINS[NUM_BUTTONS] = {BUTTON_RIGH_PIN, BUTTON_LEFT_PIN, BUTTON_SELT_PIN};
@@ -38,19 +40,8 @@ const uint8_t BUTTON_PINS[NUM_BUTTONS] = {BUTTON_RIGH_PIN, BUTTON_LEFT_PIN, BUTT
 
 //Variables for ntp time.
 const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 28800;
+const long  gmtOffset_sec = 25200;
 const int   daylightOffset_sec = 0;
-  
-
-#define Temperature_16Icon_width 16
-#define Temperature_16Icon_height 26
-static const unsigned char Temperature_16Icon_bits[] U8X8_PROGMEM = {
-  0xF0, 0x07, 0x70, 0x0E, 0x30, 0x0C, 0x38, 0x1C, 0x38, 0x0C, 0x18, 0x0C, 
-  0x30, 0x0C, 0x38, 0x1C, 0x38, 0x1C, 0x30, 0x0C, 0xB8, 0x0D, 0xB0, 0x1D, 
-  0xB8, 0x0D, 0xB0, 0x0D, 0xB8, 0x1D, 0x9C, 0x39, 0xEC, 0x33, 0xEE, 0x77, 
-  0xEE, 0x77, 0xF6, 0x37, 0xEE, 0x37, 0xCC, 0x3B, 0x3C, 0x1C, 0xF8, 0x1F, 
-  0xE0, 0x07, 0x00, 0x00, };
-
 
 
 #define Humidity_20Icon_width 27

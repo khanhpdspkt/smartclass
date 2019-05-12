@@ -1,4 +1,4 @@
-#include "Menu.h"
+
 
 void showMenu()
 {
@@ -8,13 +8,15 @@ void showMenu()
   {
     do
     {
-      u8g2.clearBuffer();
-      drawMenu(&current_state);  
-      u8g2.setFont(u8g2_font_helvB10_tr);  
-      u8g2.setCursor((u8g2.getDisplayWidth()-u8g2.getStrWidth(menu_entry_list[destination_state.position].name))/2,u8g2.getDisplayHeight()-5);
-      u8g2.print(menu_entry_list[destination_state.position].name);    
-      u8g2.sendBuffer();
-      delay(10);
+      u8g2.firstPage();
+      do
+      {
+        drawMenu(&current_state);  
+        u8g2.setFont(u8g2_font_helvB10_tr);  
+        u8g2.setCursor((u8g2.getDisplayWidth()-u8g2.getStrWidth(menu_entry_list[destination_state.position].name))/2,u8g2.getDisplayHeight()-5);
+        u8g2.print(menu_entry_list[destination_state.position].name);    
+        delay(10);
+      } while( u8g2.nextPage() );
       //TRACE();
       event = getMenuButton();
       if ( event == 1 )
@@ -25,7 +27,7 @@ void showMenu()
       {
         if(menu_entry_list[destination_state.position].name == "Clock Setup") {
 #if defined(ENABLE_CONNECT_CLOUD)
-          getTimeFromInternetAndUpdate();
+          handleUpdateTime();
 #endif
           break;
         }
@@ -33,6 +35,16 @@ void showMenu()
         {
           eventExit = 1;
           Serial.println("Home");
+          break;
+        }
+        else if(menu_entry_list[destination_state.position].name == "About")
+        {
+          ShowInformation();
+          break;
+        }
+        else if(menu_entry_list[destination_state.position].name == "Control Devices")
+        {
+          handleControlDevices();
           break;
         }
         else {
@@ -122,6 +134,44 @@ uint8_t towards_int16(int16_t *current, int16_t dest)
   return 0;
 }
 
+void ShowInformation(void)
+{
+  uint8_t event;
+  while(1) {
+
+    //picture loop
+    u8g2.firstPage(); 
+    do {
+        // Show title.
+        u8g2.drawBox(0, 0, 127, 13);
+        u8g2.setColorIndex(0);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.setCursor(25, 12);
+        u8g2.print("Information");
+        u8g2.setColorIndex(1);
+        
+        u8g2.setFont(u8g2_font_4x6_tr);
+        u8g2.setCursor(0, 20);
+        u8g2.print("TRUONG DH SPKT HO CHI MINH");
+        u8g2.setCursor(0, 28);
+        u8g2.print("MSSV: 13119017");
+        u8g2.setCursor(0, 36);
+        u8g2.print("Author: PHAM DUY KHANH");
+        u8g2.setCursor(0, 44);
+        u8g2.print("Project: SMART CLASS");
+        u8g2.setCursor(0, 52);
+        u8g2.print("Version: V1.0");
+        u8g2.setCursor(0, 60);
+        u8g2.print("Press SEL to return to Menu");
+    } 
+    while( u8g2.nextPage() );
+    event = getMenuButton();
+    if ( event == 3) {
+      break;
+    }
+  }
+}
+
 uint8_t towardsMenu(struct menu_state *current, struct menu_state *destination)
 {
   uint8_t r = 0;
@@ -130,4 +180,75 @@ uint8_t towardsMenu(struct menu_state *current, struct menu_state *destination)
   r |= towards_int16( &(current->menu_start), destination->menu_start);
   r |= towards_int16( &(current->menu_start), destination->menu_start);
   return r;
+}
+
+
+// Draw a red button
+void drawBtn(uint8_t x, uint8_t y, uint8_t state) {
+  //Draw frame
+  u8g2.drawFrame(x, y, BUTTON_W, BUTTON_H);
+  //Draw on or off
+  if (state == 0) {
+    u8g2.drawBox(x, y, BUTTON_W/2, BUTTON_H);
+  }
+  else if (state == 1){
+    u8g2.drawBox(x + BUTTON_W/2, y, BUTTON_W/2, BUTTON_H);
+  }
+}
+
+void toDownButton(struct menu_state *state)
+{
+  if ( menu_button_list[state->position + 1].name != NULL )
+  {
+    state->position++;
+    state->frame_position += (int16_t)BUTTON_H + (int16_t)BUTTON_GAP;
+    //Serial.println(state->position);
+  } 
+}
+
+void toUpButton(struct menu_state *state)
+{
+  if ( state->position > 0 )
+  {
+    state->position--;
+    state->frame_position -= (int16_t)BUTTON_H + (int16_t)BUTTON_GAP;
+    Serial.println(state->position);
+  }
+}
+
+void drawMenuButton(struct menu_state *state) {
+  uint8_t i;
+  uint8_t y;
+  uint8_t x;
+  i = 0;
+  y = 15;
+  x = 22;
+  u8g2.firstPage();
+  do
+  {
+    // Show title.
+    u8g2.drawBox(0, 0, 127, 13);
+    u8g2.setColorIndex(0);
+    u8g2.setFont(u8g2_font_helvB10_tr);
+    u8g2.setCursor(10, 12);
+    u8g2.print("Control Device");
+    u8g2.setColorIndex(1);
+   
+    u8g2.setFont(u8g2_font_5x8_tf);
+    // Show menu list of buttons
+    while( menu_button_list[i].name  != NULL)  
+    {
+      u8g2.setCursor(0, x);
+      u8g2.print(menu_button_list[i].name);
+      drawBtn(107, y, menu_button_list[i].state);
+      i++;
+      y +=  11;
+      x += 11;
+    }
+    u8g2.setFont(u8g2_font_4x6_tr);
+    u8g2.setCursor(0, 64);
+    u8g2.print("Press SEL to return to Menu");
+    u8g2.drawFrame(0, state->frame_position, 128, BUTTON_H + 2);
+    delay(10);
+  } while( u8g2.nextPage() );
 }

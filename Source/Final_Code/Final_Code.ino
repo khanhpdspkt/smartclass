@@ -3,8 +3,9 @@
 
 #include <Wire.h>
 #include <Adafruit_NFCShield_I2C.h>
-#include <RtcDS3231.h>  //RTC library
+#include <RtcDS3231.h>
 #include <U8g2lib.h>
+#include <SPI.h>
 
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -13,11 +14,8 @@
 #include "Ticker.h"
 #include <EasyButton.h>
 #include <ArduinoTrace.h>
-
-#include <EasyNTPClient.h>
-#include <WiFiUdp.h>
-
 #include "define.h"
+#include "Menu.h"
 
 /**************************************************************/
 /* Example how to read DHT sensors from an ESP32 using multi- */
@@ -43,18 +41,25 @@ struct DeviceStatus
   uint8_t DV4:1;
 };
 
+//struct DataTag
+//{
+//  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
+//  uint8_t uidLength;                        // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
+//};
+
 /* define wifi and host */
-//const char* ssid = "Linh Nam";
-//const char* password =  "0919607667";
-const char* ssid = "ziroom201";
-const char* password =  "ziroomer002";
+const char* ssid = "Linh Nam";
+const char* password =  "0919607667";
+//const char* ssid = "ziroom201";
+//const char* password =  "ziroomer002";
 
 //const char* host = "http://192.168.0.105:8080";
-const char* host = "http://192.168.0.107:80";
+const char* host = "http://192.168.0.104:8080";
 
 void scanTagTask(void *pvParameters);
 
-U8G2_ST7565_NHD_C12864_F_4W_SW_SPI u8g2(U8G2_MIRROR, /* clock=*/ 18, /* data=*/ 23, /* cs=*/ 5, /* dc=*/ 17, /* reset=*/ 8);
+//U8G2_ST7565_NHD_C12864_F_4W_SW_SPI u8g2(U8G2_MIRROR, /* clock=*/ 18, /* data=*/ 23, /* cs=*/ 5, /* dc=*/ 17, /* reset=*/ NULL);
+U8G2_ST7565_NHD_C12864_F_4W_HW_SPI u8g2(U8G2_MIRROR, /* cs=*/ 5, /* dc=*/ 17, NULL);
 Adafruit_NFCShield_I2C nfc(PN532_IRQ, RESET);
 RtcDS3231<TwoWire> rtcObject(Wire);   //Uncomment for version 2.0.0 of the rtc library
 StaticJsonDocument<150> doc;
@@ -71,14 +76,16 @@ EasyButton buttonSelect(BUTTON_SELT_PIN);
 
 DeviceStatus dvStatus;
 QueueHandle_t queue_dht;
+QueueHandle_t queue_uid;
 
 String response_uid;
 String response_data;
- struct tm timeinfo;
+struct tm timeinfo;
 
 /* Declare variables */
 boolean success;                          // status when reading tag
 uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
+char uid_sendData[15];
 uint8_t uidLength;                        // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
 
 /* Configure BUZZER */
@@ -104,6 +111,7 @@ int min_temp = 500;
 int max_temp = -500;
 
 uint8_t MenuStatus = 0;
+uint8_t StatusUID;
 
 char* Day_Of_Week[]={
                       "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
@@ -114,14 +122,14 @@ SemaphoreHandle_t xMutex_i2c;               // Mutex use to comunicate i2c
 SemaphoreHandle_t xMutex_post;              // Mutex use to send data to host between tasks
 TaskHandle_t getStatusTaskHandle = NULL;    // Task handle for the read task of device status 
 TaskHandle_t tempTaskHandle = NULL;         // Task handle for the light value read task
-Ticker tempTicker;                          // Ticker for get status of devices
+Ticker tempTicker_dv;                       // Ticker for get status of devices
 Ticker tempTicker_dht;                      // Ticker for read temperature and humidity
 
 // For setting up critical sections (enableinterrupts and disableinterrupts not available)
 // used to disable and interrupt interrupts
-
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
+//Handle interrupt
 void IRAM_ATTR handleInterrupt() 
 {
   portENTER_CRITICAL_ISR(&mux);
@@ -209,9 +217,10 @@ void setup() {
 #endif
 
   //ueue_dht = xQueueCreate( 10, sizeof( TempAndHumidity * ) );
+  //queue_uid = xQueueCreate(10, sizeof(uint8_t *), );
   
 #if defined(ENABLE_CONNECT_CLOUD)
-  tempTicker.attach(20, triggerGetStatus);
+  tempTicker_dv.attach(20, triggerGetStatus);
 #endif
 
   tempTicker_dht.attach(10, triggerGetTemp);
@@ -222,7 +231,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     scanTagTask,                   /* Function toimplement the task */
     "scanTagTask",                 /* Name of the task */
-    1000,                          /* Stack size in words */
+    2000,                          /* Stack size in words */
     NULL,                          /* Task input parameter */
     4,                             /* Priority of the task */
     NULL,                          /* Task handle. */
@@ -232,7 +241,7 @@ void setup() {
   xTaskCreatePinnedToCore(
       tempTask,                       /* Function to implement the task */
       "tempTask ",                    /* Name of the task */
-      1000,                           /* Stack size in words */
+      2000,                           /* Stack size in words */
       NULL,                           /* Task input parameter */
       5,                              /* Priority of the task */
       &tempTaskHandle,                /* Task handle. */
@@ -243,7 +252,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     getStatusDevices,              /* Function toimplement the task */
     "GetStatusDevices",            /* Name of the task */
-    1000,                          /* Stack size in words */
+    2000,                          /* Stack size in words */
     NULL,                          /* Task input parameter */
     5,                             /* Priority of the task */
     &getStatusTaskHandle,          /* Task handle. */
@@ -270,7 +279,7 @@ void loop() {
 
 void scanTagTask(void *pvParameters) 
 {
-  String sendData;                          // Used to send data to server
+  //String sendData;                          // Used to send data to server
   while (1) 
   {
     // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
@@ -279,7 +288,8 @@ void scanTagTask(void *pvParameters)
     SEMAPHORE_TAKE(xMutex_i2c, I2CDEV_TIMEOUT);
     success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, &uid[0], &uidLength);
     SEMAPHORE_GIVE(xMutex_i2c);
-    
+    //xQueueSend(queue_uid, &success, portMAX_DELAY);
+    Serial.println(success);
     if (success) 
     {
 #if defined(ENABLE_DEBUG)
@@ -296,12 +306,11 @@ void scanTagTask(void *pvParameters)
 #endif  
       
 #if defined(ENABLE_CONNECT_CLOUD)
-      sendData = "uid=" + String(uid[0], HEX) + String(uid[1], HEX) + String(uid[2], HEX) + String(uid[3], HEX);// Prepare data to send
-      int result = pushDataToServer(sendData, RX_READ, response_uid);
-      Serial.println(sendData);
+      sprintf(uid_sendData, "uid=%02X%02X%02X%02X",uid[0], uid[1], uid[2], uid[3]);
+      int result = pushDataToServer(uid_sendData, RX_READ, response_uid);
+      Serial.println(uid_sendData);
       Serial.println(response_uid);
 #endif
-    
       /* Tone */
       for (int dutyCycle = 0; dutyCycle < 3; dutyCycle++)
       {
@@ -326,6 +335,7 @@ void scanTagTask(void *pvParameters)
     
     delay(1000);
     // Wait 1 second before continuing
+     success = 0;
   }
 }
 
@@ -364,6 +374,10 @@ void getStatusDevices(void *pvParameters)
     {
       Serial.println("Error in WiFi connection");   
     }
+    menu_button_list[0].state = dvStatus.DV1;
+    menu_button_list[1].state = dvStatus.DV2;
+    menu_button_list[2].state = dvStatus.DV3;
+    menu_button_list[3].state = dvStatus.DV4;
     
     //Control devices after get status from internet
     digitalWrite(RELAY_DV1, dvStatus.DV1);
@@ -405,12 +419,12 @@ void tempTask(void *pvParameters) {
 #if defined(ENABLE_CONNECT_CLOUD)
       // Make our document be an object
       JsonObject root = doc.to<JsonObject>();
-      root["Temp"] = dhtData.temperature;
-      root["Humi"] = dhtData.humidity;
+      root["Temp"] = (uint8_t)dhtData.temperature;
+      root["Humi"] = (uint8_t)dhtData.humidity;
       serializeJsonPretty(root, sendData);
       
       int result = pushDataToServer(sendData, TYPE_JSON, response_data);
-      Serial.println(sendData);
+      //Serial.println(sendData);
       Serial.println(response_data);
 #endif
 
@@ -423,10 +437,10 @@ void mainTask(void *pvParameters)
 {
   while(1)
   {
-    if (MenuStatus  == 1)
+    if (MenuStatus == 1)
     {
-      MenuStatus  =  0;
       showMenu();
+      MenuStatus = 0;
     }
     // Read time from DS3231
     readtimeTask(currentTime);
@@ -435,6 +449,7 @@ void mainTask(void *pvParameters)
     u8g2.firstPage(); 
     do {
       Screen_2();
+      delay(10);
     } 
     while( u8g2.nextPage() );
     delay(100);

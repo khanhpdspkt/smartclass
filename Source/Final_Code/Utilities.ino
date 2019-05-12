@@ -2,14 +2,14 @@ void ShowDigitalClock(RtcDateTime nowTime)
 {
   //Show on data
   u8g2.setFont(u8g_font_5x8);
-  u8g2.setCursor(8, 55);
+  u8g2.setCursor(8, 59);
   u8g2.print(nowTime.Day());
 
-  u8g2.drawStr( 19, 55, "/");
-  u8g2.setCursor(24, 55);
+  u8g2.drawStr( 19, 59, "/");
+  u8g2.setCursor(24, 59);
   u8g2.print(nowTime.Month());
-  u8g2.drawStr( 35, 55, "/");
-  u8g2.setCursor(41, 55);
+  u8g2.drawStr( 35, 59, "/");
+  u8g2.setCursor(41, 59);
   u8g2.print(nowTime.Year());
   
   // Show hour and minutes
@@ -17,7 +17,6 @@ void ShowDigitalClock(RtcDateTime nowTime)
   u8g2.setColorIndex(0);
   u8g2.setFont(u8g2_font_fub14_tn);
   u8g2.drawStr(29, 21, ":");
-
   
   // Set the position of digit in case the time
   // Check if hour is less than 10
@@ -47,30 +46,34 @@ void Screen_2(void)
 {
   u8g2.drawRFrame(0, 0, 128, 64, 3);
   u8g2.drawRFrame(68, 4, 55, 56, 2);
+  
   ShowDigitalClock(currentTime);
-  u8g2.setFont(u8g_font_5x8); 
-  u8g2.drawStr( 78, 35, "MIN");
-  u8g2.drawStr( 78, 53, "MAX");
+
+  u8g2.setFont(u8g2_font_open_iconic_human_4x_t);
+  u8g2.drawGlyph(80, 40, 68 );
+  u8g2.setFont(u8g2_font_t0_12b_me);
+  
+  if(success)
+  {
+    if (response_uid == "Updated") {
+      u8g2.setCursor(85, 55);
+      u8g2.print("OKE");
+    }
+    else {
+      u8g2.setCursor(80, 55);
+      u8g2.print("ERROR");
+    }
+  }
+  else
+  {
+    u8g2.setCursor(72, 55);
+    u8g2.print("SCAN TAG");
+  }
+    
   u8g2.setFont(u8g_font_6x13);
-  //u8g2.setCursor(25, 41);
-  //u8g2.print(Day_Of_Week[(currentTime.DayOfWeek() - 1)]);
-  u8g2.drawXBMP(5, 25, Temperature_16Icon_width, Temperature_16Icon_height, Temperature_16Icon_bits);
-  
-  //Update actual temperature
-  u8g2.setCursor(83, 19);
-  u8g2.print(temperature); 
-  u8g2.drawStr( 105, 19, "C");
-  u8g2.drawCircle(100, 12, 2);
-  
-  //Show minimum temperature
-  u8g2.setCursor(98, 36);
-  u8g2.print(min_temp); 
-  u8g2.drawCircle(113, 29, 2);
-  
-  //Show maxima temperature
-  u8g2.setCursor(98, 54);
-  u8g2.print(max_temp); 
-  u8g2.drawCircle(113, 47, 2);
+  u8g2.setCursor(10, 41);
+  u8g2.print(dhtData.temperature);
+  //u8g2.drawXBMP(5, 25, Temperature_16Icon_width, Temperature_16Icon_height, Temperature_16Icon_bits);
 }
 
 void readtimeTask(RtcDateTime &nowTime) 
@@ -185,33 +188,95 @@ void triggerGetStatus(void) {
 }
 
 
-uint8_t getTimeFromInternetAndUpdate(void)
+uint8_t handleUpdateTime(void)
 { 
+  u8g2.clearBuffer();
+  // Show title.
+  u8g2.drawBox(0, 0, 127, 13);
+  u8g2.setColorIndex(0);
+  u8g2.setFont(u8g2_font_helvB10_tr);
+  u8g2.setCursor(25, 12);
+  u8g2.print("Clock Setup");
+  u8g2.setColorIndex(1);
+  u8g2.sendBuffer();
+  
+  u8g2.setFont(u8g2_font_4x6_tr);
+  u8g2.setCursor(0, 20);
+  u8g2.print("1.Check status wifi: ");
+  u8g2.sendBuffer();
+  delay(100);
   if(WiFi.status()== WL_CONNECTED)   //Check WiFi connection status
   {
+    u8g2.print("OK");
+
+    u8g2.setCursor(0, 28);
+    u8g2.print("2. Config parameter of ntp time");
+    u8g2.sendBuffer();
+    delay(200);
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     struct tm timeinfo;
+
+    u8g2.setCursor(0, 36);
+    u8g2.print("3. Get time from internet:");
+    u8g2.sendBuffer();
+    delay(500);
     if (!getLocalTime(&timeinfo)) {
+      u8g2.print("ERROR");
 #if defined(ENABLE_DEBUG)
       Serial.println("Failed to obtain time");
 #endif
       return 0;
     }
+
+    u8g2.print("OK");
 #if defined(ENABLE_DEBUG)
     Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
 #endif
+    u8g2.setCursor(0, 44);
+    u8g2.print("4. Update time to DS3231.");
+    u8g2.sendBuffer();
+    delay(200);
     RtcDateTime nowTime = RtcDateTime(timeinfo.tm_year%100, timeinfo.tm_mon + 1, timeinfo.tm_mday, 
                         timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec); //define date and time object
     rtcObject.SetDateTime(nowTime); //configure the RTC with object;
   }
   else
   {
+    u8g2.print("ERROR");
+    u8g2.sendBuffer();
 #if defined(ENABLE_DEBUG)
     Serial.println("Error in WiFi connection");
 #endif
+    delay(1000);
     return 0;
   }
+  delay(1000);
   return 1;
+}
+
+void handleControlDevices(void)
+{
+  uint8_t event = 0;
+  uint8_t temp = 0;
+  while (1) {
+    drawMenuButton(&currentBt_state);
+    event = getMenuButton();
+    if (event == 1) {
+      toDownButton(&currentBt_state);
+    }
+    else if (event == 2) {
+      toUpButton(&currentBt_state);
+    }
+    else if (event == 3) {
+      if (menu_button_list[currentBt_state.position].name != NULL)
+      {
+        temp = menu_button_list[currentBt_state.position].state;
+        menu_button_list[currentBt_state.position].state = ~temp&0x01;
+        Serial.println(currentBt_state.position);
+        Serial.println(menu_button_list[currentBt_state.position].state);
+      }
+    }
+  } /* End while loop */
 }
 
 
@@ -224,6 +289,7 @@ void triggerGetTemp()
 {
   if (tempTaskHandle != NULL) 
   {
+    Serial.println("Trigge to push temp and humi.");
      xTaskResumeFromISR(tempTaskHandle);
   }
 }
