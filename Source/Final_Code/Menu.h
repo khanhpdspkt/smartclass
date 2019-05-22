@@ -10,12 +10,12 @@
 #define ICON_BGAP 16
 #define ICON_Y 32 + ICON_GAP
 
-#define BUTTON_GAP 3
+#define BUTTON_GAP 2
 #define BUTTON_BGAP 14
 
 // Switch position and size
-#define BUTTON_W 20
-#define BUTTON_H 8
+#define BUTTON_W 14
+#define BUTTON_H 6
 
 struct menu_entry_type
 {
@@ -41,19 +41,26 @@ struct menu_entry_type menu_entry_list[] =
   { NULL, 0, NULL } 
 };
 
-struct menu_button_type
+enum _menu_type {
+  MENU_BUTTON,
+  MENU_EXIT
+};
+
+struct menu_type
 {
+  uint8_t type;
   uint8_t state;
   const char *name;
 };
 
-struct menu_button_type menu_button_list[] =
+struct menu_type menu_button_list[] =
 {
-  { 1, "DEVICE 1"},
-  { 0, "DEVICE 2"},
-  { 0, "DEVICE 3"},
-  { 1, "DEVICE 4"},
-  { 0, NULL } 
+  { MENU_BUTTON, 1, "DEVICE 1"},
+  { MENU_BUTTON, 0, "DEVICE 2"},
+  { MENU_BUTTON, 0, "DEVICE 3"},
+  { MENU_BUTTON, 1, "DEVICE 4"},
+  { MENU_EXIT,   0, "Press SEL to return to Menu"},
+  { NULL, 0, NULL} 
 };
 
 

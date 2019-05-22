@@ -44,18 +44,27 @@ void ShowDigitalClock(RtcDateTime nowTime)
 
 void Screen_2(void)
 {
+  u8g2.clearBuffer();
   u8g2.drawRFrame(0, 0, 128, 64, 3);
   u8g2.drawRFrame(68, 4, 55, 56, 2);
   
   ShowDigitalClock(currentTime);
 
   u8g2.setFont(u8g2_font_open_iconic_human_4x_t);
-  u8g2.drawGlyph(80, 40, 68 );
-  u8g2.setFont(u8g2_font_t0_12b_me);
+  u8g2.drawGlyph(80, 40, 68);
   
+  u8g2.setFont(u8g_font_6x13);
+  u8g2.setCursor(10, 41);
+  u8g2.print(dhtData.temperature);
+  //u8g2.drawXBMP(5, 25, Temperature_16Icon_width, Temperature_16Icon_height, Temperature_16Icon_bits);
+  
+  u8g2.setFont(u8g2_font_t0_12b_me);
   if(success)
   {
-    if (response_uid == "Updated") {
+    xQueueReceive(queue_uid, &readQueue, 1000);
+    Serial.print("Read queue:");
+    Serial.println(readQueue);
+    if (readQueue == 1) {
       u8g2.setCursor(85, 55);
       u8g2.print("OKE");
     }
@@ -69,11 +78,7 @@ void Screen_2(void)
     u8g2.setCursor(72, 55);
     u8g2.print("SCAN TAG");
   }
-    
-  u8g2.setFont(u8g_font_6x13);
-  u8g2.setCursor(10, 41);
-  u8g2.print(dhtData.temperature);
-  //u8g2.drawXBMP(5, 25, Temperature_16Icon_width, Temperature_16Icon_height, Temperature_16Icon_bits);
+  u8g2.sendBuffer();
 }
 
 void readtimeTask(RtcDateTime &nowTime) 
@@ -102,7 +107,7 @@ void readtimeTask(RtcDateTime &nowTime)
  * @param 
  * @return 
  */
-uint8_t pushDataToServer(String DataToSend, uint8_t type, String &response)
+uint8_t pushDataToServer(String DataToSend, uint8_t type, char response[])
 {
   if(WiFi.status()== WL_CONNECTED)   //Check WiFi connection status
   {
@@ -121,9 +126,10 @@ uint8_t pushDataToServer(String DataToSend, uint8_t type, String &response)
     int httpResponseCode = http.POST(DataToSend);                 //Send the actual POST request
     if (httpResponseCode > 0)
     {
-      String response = http.getString();             //Get the response to the request
-      Serial.println(httpResponseCode);               //Print return code
-      Serial.println(response);                       //Print request answer
+      String response_temp = http.getString();             //Get the response to the request
+      response_temp.toCharArray(response, 20);
+      Serial.println(httpResponseCode);                    //Print return code
+      Serial.println(response_temp);                       //Print request answer
     } 
     else
     {
@@ -258,6 +264,7 @@ void handleControlDevices(void)
 {
   uint8_t event = 0;
   uint8_t temp = 0;
+  String sendValue;
   while (1) {
     drawMenuButton(&currentBt_state);
     event = getMenuButton();
@@ -268,12 +275,24 @@ void handleControlDevices(void)
       toUpButton(&currentBt_state);
     }
     else if (event == 3) {
-      if (menu_button_list[currentBt_state.position].name != NULL)
+      if (menu_button_list[currentBt_state.position].name != NULL &&
+              menu_button_list[currentBt_state.position].type == MENU_BUTTON)
       {
         temp = menu_button_list[currentBt_state.position].state;
         menu_button_list[currentBt_state.position].state = ~temp&0x01;
         Serial.println(currentBt_state.position);
         Serial.println(menu_button_list[currentBt_state.position].state);
+      }
+      else {
+        // Make our document be an object
+        JsonObject root = doc.to<JsonObject>();
+        root["Dv1"] = (uint8_t)menu_button_list[0].state;
+        root["Dv2"] = (uint8_t)menu_button_list[1].state;
+        root["Dv3"] = (uint8_t)menu_button_list[2].state;
+        root["Dv4"] = (uint8_t)menu_button_list[3].state;
+        serializeJsonPretty(root, sendValue);
+        int result = pushDataToServer(sendValue, TYPE_JSON, response_data);
+        break;
       }
     }
   } /* End while loop */

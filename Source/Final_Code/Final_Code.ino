@@ -1,6 +1,3 @@
-
-
-
 #include <Wire.h>
 #include <Adafruit_NFCShield_I2C.h>
 #include <RtcDS3231.h>
@@ -41,27 +38,28 @@ struct DeviceStatus
   uint8_t DV4:1;
 };
 
-//struct DataTag
-//{
-//  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
-//  uint8_t uidLength;                        // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
-//};
-
 /* define wifi and host */
 const char* ssid = "Linh Nam";
 const char* password =  "0919607667";
+//const char* ssid = "Mi Phone";
+//const char* password =  "012345678";
 //const char* ssid = "ziroom201";
 //const char* password =  "ziroomer002";
 
 //const char* host = "http://192.168.0.105:8080";
-const char* host = "http://192.168.0.104:8080";
+const char* host = "http://192.168.0.100:8080";
+//const char* host = "http://192.168.43.90:8080";
+
+const char* UID_OK = "Updated";
 
 void scanTagTask(void *pvParameters);
 
 //U8G2_ST7565_NHD_C12864_F_4W_SW_SPI u8g2(U8G2_MIRROR, /* clock=*/ 18, /* data=*/ 23, /* cs=*/ 5, /* dc=*/ 17, /* reset=*/ NULL);
 U8G2_ST7565_NHD_C12864_F_4W_HW_SPI u8g2(U8G2_MIRROR, /* cs=*/ 5, /* dc=*/ 17, NULL);
+
 Adafruit_NFCShield_I2C nfc(PN532_IRQ, RESET);
 RtcDS3231<TwoWire> rtcObject(Wire);   //Uncomment for version 2.0.0 of the rtc library
+
 StaticJsonDocument<150> doc;
 RtcDateTime currentTime;
 DHTesp dht;
@@ -78,8 +76,8 @@ DeviceStatus dvStatus;
 QueueHandle_t queue_dht;
 QueueHandle_t queue_uid;
 
-String response_uid;
-String response_data;
+char response_uid[20];
+char response_data[20];
 struct tm timeinfo;
 
 /* Declare variables */
@@ -156,6 +154,12 @@ void setup() {
   /* Setup BUZZER */
   ledcSetup(channel, freq, resolution);
   ledcAttachPin(BUZZER_PIN, channel);
+
+  //Configure device pins
+  pinMode(RELAY_DV3, OUTPUT);
+  pinMode(RELAY_DV4, OUTPUT);  
+  pinMode(RELAY_DV1, OUTPUT);
+  pinMode(RELAY_DV2, OUTPUT);
   
 //#if defined(ENABLE_CONNECT_CLOUD)
   // Set up network to send and receive data
@@ -181,6 +185,7 @@ void setup() {
     Serial.print("Didn't find PN53x board");
     while (1); // halt
   }
+  
   // Got ok data, print it out!
   Serial.print("Found chip PN5"); Serial.println((versiondata>>24) & 0xFF, HEX); 
   Serial.print("Firmware ver. "); Serial.print((versiondata>>16) & 0xFF, DEC); 
@@ -203,12 +208,6 @@ void setup() {
   buttonMenu.begin();
   attachInterrupt(digitalPinToInterrupt(BUTTON_MENU_PIN), handleInterrupt, RISING);
 
-  //Configure device pins
-  pinMode(RELAY_DV1, OUTPUT);
-  pinMode(RELAY_DV2, OUTPUT);
-  pinMode(RELAY_DV3, OUTPUT);
-  pinMode(RELAY_DV4, OUTPUT);
- 
   /* create Mutex */
   xMutex_i2c = xSemaphoreCreateMutex();
   
@@ -217,13 +216,13 @@ void setup() {
 #endif
 
   //ueue_dht = xQueueCreate( 10, sizeof( TempAndHumidity * ) );
-  //queue_uid = xQueueCreate(10, sizeof(uint8_t *), );
+  queue_uid = xQueueCreate(5, sizeof(uint8_t));
   
 #if defined(ENABLE_CONNECT_CLOUD)
   tempTicker_dv.attach(20, triggerGetStatus);
 #endif
 
-  tempTicker_dht.attach(10, triggerGetTemp);
+  tempTicker_dht.attach(15, triggerGetTemp);
 
   delay(1000);
   
@@ -279,6 +278,7 @@ void loop() {
 
 void scanTagTask(void *pvParameters) 
 {
+  uint8_t result_uid;
   //String sendData;                          // Used to send data to server
   while (1) 
   {
@@ -288,8 +288,6 @@ void scanTagTask(void *pvParameters)
     SEMAPHORE_TAKE(xMutex_i2c, I2CDEV_TIMEOUT);
     success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, &uid[0], &uidLength);
     SEMAPHORE_GIVE(xMutex_i2c);
-    //xQueueSend(queue_uid, &success, portMAX_DELAY);
-    Serial.println(success);
     if (success) 
     {
 #if defined(ENABLE_DEBUG)
@@ -308,8 +306,22 @@ void scanTagTask(void *pvParameters)
 #if defined(ENABLE_CONNECT_CLOUD)
       sprintf(uid_sendData, "uid=%02X%02X%02X%02X",uid[0], uid[1], uid[2], uid[3]);
       int result = pushDataToServer(uid_sendData, RX_READ, response_uid);
-      Serial.println(uid_sendData);
-      Serial.println(response_uid);
+      if(result == 1) {
+        Serial.print("String:");
+        Serial.println(response_uid);
+        if (strncmp(response_uid, UID_OK, strlen(UID_OK)) == 0) {
+          result_uid = 1;
+          Serial.println("Oke ne");
+        }
+        else {
+          result_uid = 0;
+        }
+        Serial.print("result_uid:");
+        Serial.println(result_uid);
+        xQueueSend(queue_uid, &result_uid, 100);
+        Serial.println(uid_sendData);
+        Serial.println(response_uid);
+      }
 #endif
       /* Tone */
       for (int dutyCycle = 0; dutyCycle < 3; dutyCycle++)
@@ -359,7 +371,9 @@ void getStatusDevices(void *pvParameters)
         dvStatus.DV2 = obj[String("Dv2")];
         dvStatus.DV3 = obj[String("Dv3")];
         dvStatus.DV4 = obj[String("Dv4")];
+#if defined(ENABLE_DEBUG)
         Serial.println(response);                       //Print request answer
+#endif
       } 
       else
       {
@@ -378,12 +392,18 @@ void getStatusDevices(void *pvParameters)
     menu_button_list[1].state = dvStatus.DV2;
     menu_button_list[2].state = dvStatus.DV3;
     menu_button_list[3].state = dvStatus.DV4;
-    
+    Serial.print(dvStatus.DV1);
+    Serial.print(dvStatus.DV2);
+    Serial.print(dvStatus.DV3);
+    Serial.print(dvStatus.DV4);
+    Serial.println(~(dvStatus.DV1&0x01));
+
+
     //Control devices after get status from internet
     digitalWrite(RELAY_DV1, dvStatus.DV1);
     digitalWrite(RELAY_DV2, dvStatus.DV2);
-    digitalWrite(RELAY_DV3, dvStatus.DV3);
-    digitalWrite(RELAY_DV4, dvStatus.DV4);
+    digitalWrite(RELAY_DV3, ~(dvStatus.DV3&0x01));
+    digitalWrite(RELAY_DV4, ~(dvStatus.DV4&0x01));
     
     // Got sleep again
     vTaskSuspend(NULL);

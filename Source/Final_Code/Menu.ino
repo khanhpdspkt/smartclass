@@ -189,10 +189,11 @@ void drawBtn(uint8_t x, uint8_t y, uint8_t state) {
   u8g2.drawFrame(x, y, BUTTON_W, BUTTON_H);
   //Draw on or off
   if (state == 0) {
-    u8g2.drawBox(x, y, BUTTON_W/2, BUTTON_H);
+    u8g2.drawBox(x + BUTTON_W/2, y, BUTTON_W/2, BUTTON_H);
+    
   }
   else if (state == 1){
-    u8g2.drawBox(x + BUTTON_W/2, y, BUTTON_W/2, BUTTON_H);
+    u8g2.drawBox(x, y, BUTTON_W/2, BUTTON_H);
   }
 }
 
@@ -222,7 +223,7 @@ void drawMenuButton(struct menu_state *state) {
   uint8_t x;
   i = 0;
   y = 15;
-  x = 22;
+  x = 21;
   u8g2.firstPage();
   do
   {
@@ -234,20 +235,22 @@ void drawMenuButton(struct menu_state *state) {
     u8g2.print("Control Device");
     u8g2.setColorIndex(1);
    
-    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.setFont(u8g2_font_4x6_tr);
     // Show menu list of buttons
     while( menu_button_list[i].name  != NULL)  
     {
       u8g2.setCursor(0, x);
       u8g2.print(menu_button_list[i].name);
-      drawBtn(107, y, menu_button_list[i].state);
+      if(menu_button_list[i].type == MENU_BUTTON) {
+        drawBtn(113, y, menu_button_list[i].state);
+      } 
+      else {
+        //Do nothing
+      }
       i++;
-      y +=  11;
-      x += 11;
+      y +=  8;
+      x += 8;
     }
-    u8g2.setFont(u8g2_font_4x6_tr);
-    u8g2.setCursor(0, 64);
-    u8g2.print("Press SEL to return to Menu");
     u8g2.drawFrame(0, state->frame_position, 128, BUTTON_H + 2);
     delay(10);
   } while( u8g2.nextPage() );
